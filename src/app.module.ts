@@ -26,6 +26,7 @@ import { PaymentModule } from './modules/payment/payment.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter'; // Import Filter Anda
+import { RolesGuard } from '@common/guards/roles.guard';
 
 @Module({
   imports: [
@@ -52,6 +53,11 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter'; //
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
+
+    {
+    provide: APP_GUARD,
+    useClass: RolesGuard, 
+  },
     
     // 2. GLOBAL INTERCEPTOR (Format Response Sukses)
     {
