@@ -92,7 +92,7 @@ model User {
   role             Role     @relation(fields: [roleId], references: [id])
   
   communityGroupId Int
-  communityGroup   CommunityGroup @relation(fields: [communityGroupId], references: [id])
+  communityGroup   CommunityGroup @relation(fields: [communityGroupId], references: [id], onDelete: Cascade)
 
   // Self-Referential (Creator Tracking)
   createdById      String?
@@ -119,7 +119,7 @@ model Wallet {
   balance          Decimal        @default(0) @db.Decimal(15, 2)
   
   communityGroupId Int            @unique
-  communityGroup   CommunityGroup @relation(fields: [communityGroupId], references: [id])
+  communityGroup   CommunityGroup @relation(fields: [communityGroupId], references: [id], onDelete: Cascade)
   
   transactions     Transaction[]
   
@@ -185,7 +185,7 @@ model Event {
   endDate         DateTime?
 
   communityGroupId Int
-  communityGroup   CommunityGroup @relation(fields: [communityGroupId], references: [id])
+  communityGroup   CommunityGroup @relation(fields: [communityGroupId], references: [id], onDelete: Cascade)
   
   createdById     String
   createdBy       User            @relation("EventCreator", fields: [createdById], references: [id])
@@ -207,7 +207,7 @@ model Event {
 model ApprovalRule {
   id               Int            @id @default(autoincrement())
   communityGroupId Int
-  communityGroup   CommunityGroup @relation(fields: [communityGroupId], references: [id])
+  communityGroup   CommunityGroup @relation(fields: [communityGroupId], references: [id], onDelete: Cascade)
   
   roleId           Int
   role             Role           @relation(fields: [roleId], references: [id])
