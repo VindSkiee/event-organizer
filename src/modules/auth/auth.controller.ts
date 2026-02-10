@@ -10,7 +10,6 @@ import {
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { Public, ActiveUser } from '@common/decorators'; // Import Public Decorator
-import { User } from '@prisma/client'; // Atau interface user Anda
 
 @Controller('auth')
 export class AuthController {

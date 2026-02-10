@@ -3,10 +3,20 @@ import { PrismaService } from '../../../database/prisma.service';
 import { Prisma, CommunityGroup } from '@prisma/client';
 
 // 1. TYPE CUSTOM
-// Penting! Kita sering butuh data Group + Saldo Wallet-nya
+// Group Basic + Wallet
 export type GroupWithWallet = Prisma.CommunityGroupGetPayload<{
   include: { 
     wallet: true;
+  };
+}>;
+
+// Group Lengkap (Wallet + Info Parent/Children)
+// Ini dipakai untuk detail page: "RT 01 (Induk: RW 05)"
+export type GroupWithHierarchy = Prisma.CommunityGroupGetPayload<{
+  include: { 
+    wallet: true;
+    parent: true;
+    children: true;
   };
 }>;
 
@@ -15,15 +25,15 @@ export class GroupsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * CREATE GROUP + WALLET (Atomic)
-   * Fitur nested write Prisma menjamin:
-   * Jika Wallet gagal dibuat, Group juga batal dibuat. Aman!
+   * CREATE GROUP + WALLET
+   * Menggunakan spread operator (...data) aman, 
+   * field 'parent' otomatis masuk jika dikirim dari Service.
    */
   async createWithWallet(data: Prisma.CommunityGroupCreateInput): Promise<CommunityGroup> {
     return this.prisma.communityGroup.create({
       data: {
         ...data,
-        // Otomatis buat wallet dengan saldo 0 saat Group dibuat
+        // Kita paksa wallet dibuat kosong, menimpa kalau ada input wallet dari 'data'
         wallet: {
           create: {
             balance: 0,
@@ -34,31 +44,49 @@ export class GroupsRepository {
   }
 
   /**
-   * Cari Group by ID (Termasuk Wallet)
-   * Berguna untuk validasi atau dashboard keuangan
+   * FIND BY ID (Standard)
    */
   async findById(id: number): Promise<GroupWithWallet | null> {
     return this.prisma.communityGroup.findUnique({
       where: { id },
       include: {
-        wallet: true, // Include Wallet agar bisa cek saldo
+        wallet: true,
       },
     });
   }
 
   /**
-   * Ambil semua list Group
-   * Bisa difilter by Type ('RT' atau 'RW')
+   * FIND BY ID (Lengkap dengan Hierarki)
+   * Method baru agar Service tidak perlu inject PrismaService langsung
    */
-  async findAll(type?: string): Promise<CommunityGroup[]> {
-    return this.prisma.communityGroup.findMany({
-      where: type ? { type } : undefined,
-      orderBy: { name: 'asc' }, // Urutkan nama A-Z (RT 01, RT 02...)
+  async findByIdWithHierarchy(id: number): Promise<GroupWithHierarchy | null> {
+    return this.prisma.communityGroup.findUnique({
+      where: { id },
+      include: {
+        wallet: true,
+        parent: true,   // Include Data RW Induk
+        children: true, // Include Data RT Anak (jika ini RW)
+      },
     });
   }
 
   /**
-   * Update Group (Ganti Nama/Tipe)
+   * FIND ALL (Flexible)
+   */
+  async findAll(params: {
+    where?: Prisma.CommunityGroupWhereInput;
+    orderBy?: Prisma.CommunityGroupOrderByWithRelationInput;
+  }): Promise<CommunityGroup[]> {
+    const { where, orderBy } = params;
+
+    return this.prisma.communityGroup.findMany({
+      where,
+      orderBy: orderBy || { name: 'asc' },
+    });
+  }
+
+  /**
+   * Update Group
    */
   async update(id: number, data: Prisma.CommunityGroupUpdateInput): Promise<CommunityGroup> {
     return this.prisma.communityGroup.update({
@@ -68,8 +96,7 @@ export class GroupsRepository {
   }
 
   /**
-   * Cek apakah Group dengan ID tersebut ada?
-   * Method ringan (hanya select id) untuk validasi cepat
+   * Exists Check
    */
   async exists(id: number): Promise<boolean> {
     const count = await this.prisma.communityGroup.count({
@@ -79,9 +106,7 @@ export class GroupsRepository {
   }
 
   /**
-   * DELETE GROUP
-   * Hati-hati: Pastikan Schema Prisma menggunakan onDelete: Cascade 
-   * atau pastikan Group kosong sebelum dihapus agar tidak error constraint.
+   * Delete Group
    */
   async delete(id: number): Promise<CommunityGroup> {
     return this.prisma.communityGroup.delete({

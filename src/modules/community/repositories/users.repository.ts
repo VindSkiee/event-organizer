@@ -83,4 +83,9 @@ export class UsersRepository {
       data: { isActive: false },
     });
   }
+
+  // TAMBAHAN: Helper untuk validasi logic
+  async count(where: Prisma.UserWhereInput): Promise<number> {
+    return this.prisma.user.count({ where });
+  }
 }
