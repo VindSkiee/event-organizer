@@ -47,6 +47,12 @@ enum EventParticipantRole {
   GUEST
 }
 
+enum FundRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // --- CORE SYSTEM & RBAC ---
 
 model Role {
@@ -67,6 +73,11 @@ model CommunityGroup {
   id        Int      @id @default(autoincrement())
   name      String   
   type      String   // 'RT' atau 'RW'
+
+  // --- UPDATE 1: HIERARKI GROUP (RT punya Parent RW) ---
+  parentId  Int?     // Bisa null jika ini adalah RW (Top Level)
+  parent    CommunityGroup?  @relation("GroupHierarchy", fields: [parentId], references: [id])
+  children  CommunityGroup[] @relation("GroupHierarchy")
   
   users     User[]
   events    Event[]
@@ -74,6 +85,9 @@ model CommunityGroup {
   
   // Konfigurasi approval khusus per Group (opsional)
   approvalRules ApprovalRule[]
+  // Relasi Fund Request
+  fundRequestsSent     FundRequest[] @relation("FundRequester")
+  fundRequestsReceived FundRequest[] @relation("FundTarget")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -106,6 +120,9 @@ model User {
   approvalsGiven      EventApproval[]       @relation("ApproverUser")
   statusChanges       EventStatusHistory[]  @relation("StatusChanger")
   paymentGatewayTxs   PaymentGatewayTx[]
+  // --- UPDATE 2: RELASI FUND REQUEST ---
+  fundRequestsCreated  FundRequest[] @relation("FundCreator")
+  fundRequestsApproved FundRequest[] @relation("FundApprover")
   
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -214,6 +231,14 @@ model ApprovalRule {
   
   stepOrder        Int            // Urutan: 1, 2, 3
   isMandatory      Boolean        @default(true)
+
+  // --- FIELD BARU ---
+  // Jika diisi, rule ini hanya aktif jika budget event >= minAmount
+  minAmount        Decimal?       @db.Decimal(15, 2) 
+  
+  // Penanda apakah rule ini membutuhkan approval dari Role di Parent Group (RW)?
+  // Contoh: stepOrder 3, Role Treasurer, isCrossGroup = true -> Cari Bendahara RW
+  isCrossGroup     Boolean        @default(false)
   
   @@unique([communityGroupId, roleId, stepOrder]) // Mencegah duplikasi rule
 }
@@ -338,4 +363,32 @@ model PaymentGatewayTx {
 
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
+}
+
+// --- MODEL BARU: FUND REQUEST (RT Minta Duit ke RW) ---
+model FundRequest {
+  id              String            @id @default(uuid())
+  
+  // Group yang meminta (RT)
+  requesterGroupId Int
+  requesterGroup   CommunityGroup   @relation("FundRequester", fields: [requesterGroupId], references: [id], onDelete: Cascade)
+  
+  // Group tujuan (RW)
+  targetGroupId    Int
+  targetGroup      CommunityGroup   @relation("FundTarget", fields: [targetGroupId], references: [id], onDelete: Cascade)
+  
+  amount          Decimal           @db.Decimal(15, 2)
+  description     String            @db.Text
+  status          FundRequestStatus @default(PENDING)
+  
+  // Audit User
+  createdById     String
+  createdBy       User              @relation("FundCreator", fields: [createdById], references: [id])
+  
+  // Approval (Biasanya Bendahara RW)
+  approvedById    String?
+  approvedBy      User?             @relation("FundApprover", fields: [approvedById], references: [id])
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 }
